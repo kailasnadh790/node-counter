@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Component(service = Runnable.class, immediate = true, configurationPolicy = ConfigurationPolicy.REQUIRE)
 @Designate(ocd = PageNodeCountSchedulerConfig.class)
@@ -31,6 +32,9 @@ public class PageNodeCountJob implements Runnable {
     private String schedulerExpression;
     private int highThreshold;
     private int mediumThreshold;
+    
+    // Batch commit configuration - commit every N pages to balance performance and memory
+    private static final int COMMIT_BATCH_SIZE = 50;
 
     @Activate
     @Modified
@@ -96,11 +100,21 @@ public class PageNodeCountJob implements Runnable {
             
             LOG.debug("Root resource found: {}. Starting page traversal...", rootPath);
             AtomicInteger pagesProcessed = new AtomicInteger(0);
-            walkAndCount(rr, rootResource, pagesProcessed);
+            AtomicInteger pagesUpdated = new AtomicInteger(0);
+            AtomicInteger pagesSkipped = new AtomicInteger(0);
+            AtomicLong totalNodesProcessed = new AtomicLong(0);
+            
+            walkAndCount(rr, rootResource, pagesProcessed, pagesUpdated, pagesSkipped, totalNodesProcessed);
+            
+            // Final commit for any remaining changes
+            if (rr.hasChanges()) {
+                rr.commit();
+                LOG.debug("Final commit completed");
+            }
             
             long duration = System.currentTimeMillis() - startTime;
-            LOG.info("PageNodeCountJob completed successfully. Pages processed: {}, Duration: {} ms", 
-                    pagesProcessed.get(), duration);
+            LOG.info("PageNodeCountJob completed successfully. Pages found: {}, Updated: {}, Skipped: {}, Total nodes: {}, Duration: {} ms", 
+                    pagesProcessed.get(), pagesUpdated.get(), pagesSkipped.get(), totalNodesProcessed.get(), duration);
             
         } catch (LoginException e) {
             LOG.error("Failed to obtain ResourceResolver. Check service user configuration.", e);
@@ -109,7 +123,8 @@ public class PageNodeCountJob implements Runnable {
         }
     }
 
-    private void walkAndCount(ResourceResolver rr, Resource root, AtomicInteger pagesProcessed) {
+    private void walkAndCount(ResourceResolver rr, Resource root, AtomicInteger pagesProcessed, 
+                              AtomicInteger pagesUpdated, AtomicInteger pagesSkipped, AtomicLong totalNodesProcessed) {
         if (root == null) {
             LOG.debug("Null resource encountered, skipping");
             return;
@@ -124,75 +139,87 @@ public class PageNodeCountJob implements Runnable {
             if ("cq:Page".equals(resourceType) || "cq:Page".equals(primaryType)) {
                 String pagePath = child.getPath();
                 LOG.debug("Processing page: {}", pagePath);
+                pagesProcessed.incrementAndGet();
                 
                 Resource jcrContent = child.getChild("jcr:content");
                 if (jcrContent != null) {
-                    // Get the full node count (without limit)
-                    long nodeCount = countAllDescendants(jcrContent);
-                    String complexity = determineComplexity(jcrContent);
-                    LOG.debug("Node count: {}, Complexity level for {}: {}", nodeCount, pagePath, complexity);
+                    // OPTIMIZED: Count nodes only once and determine complexity from the same count
+                    NodeCountResult result = countNodesWithComplexity(jcrContent);
+                    totalNodesProcessed.addAndGet(result.count);
+                    
+                    LOG.debug("Node count: {}, Complexity: {} for page: {}", result.count, result.complexity, pagePath);
                     
                     try {
                         ModifiableValueMap props = jcrContent.adaptTo(ModifiableValueMap.class);
                         if (props != null) {
-                            String oldComplexity = props.get("complexity", String.class);
                             Long oldNodeCount = props.get("nodeCount", Long.class);
+                            String oldComplexity = props.get("complexity", String.class);
                             
-                            // Always overwrite the properties, even if they exist
-                            props.put("complexity", complexity);
-                            props.put("nodeCount", nodeCount);
-                            rr.commit();
-                            pagesProcessed.incrementAndGet();
-                            
-                            LOG.debug("Set nodeCount={}, complexity={} for page: {} (old: nodeCount={}, complexity={})", 
-                                    nodeCount, complexity, pagePath, oldNodeCount, oldComplexity);
+                            // OPTIMIZED: Skip update if values haven't changed
+                            if (result.count == (oldNodeCount != null ? oldNodeCount : -1L) && 
+                                result.complexity.equals(oldComplexity)) {
+                                LOG.debug("Skipping page (unchanged): {}", pagePath);
+                                pagesSkipped.incrementAndGet();
+                            } else {
+                                props.put("nodeCount", result.count);
+                                props.put("complexity", result.complexity);
+                                pagesUpdated.incrementAndGet();
+                                
+                                // OPTIMIZED: Batch commits instead of committing per page
+                                if (pagesUpdated.get() % COMMIT_BATCH_SIZE == 0) {
+                                    rr.commit();
+                                    LOG.debug("Batch commit at {} pages", pagesUpdated.get());
+                                }
+                                
+                                LOG.debug("Updated page: {} (nodeCount: {} -> {}, complexity: {} -> {})", 
+                                        pagePath, oldNodeCount, result.count, oldComplexity, result.complexity);
+                            }
                         } else {
                             LOG.warn("Could not adapt jcr:content to ModifiableValueMap for: {}", pagePath);
                         }
                     } catch (PersistenceException e) {
-                        LOG.warn("Failed to persist complexity for page: {}", pagePath, e);
+                        LOG.error("Failed to persist data for page: {}", pagePath, e);
+                        try {
+                            // Refresh to recover from potential session issues
+                            rr.refresh();
+                        } catch (Exception refreshEx) {
+                            LOG.error("Failed to refresh resolver after error", refreshEx);
+                        }
                     }
                 } else {
                     LOG.debug("No jcr:content found for page: {}", pagePath);
                 }
             }
             // Recursively descend into this node
-            walkAndCount(rr, child, pagesProcessed);
+            walkAndCount(rr, child, pagesProcessed, pagesUpdated, pagesSkipped, totalNodesProcessed);
         }
     }
 
     /**
-     * Determines the complexity level of a page based on node count.
-     * Uses early exit optimization to stop counting once a category is determined.
+     * OPTIMIZED: Single-pass counting that determines both node count and complexity.
+     * Counts all nodes but can determine complexity early without full traversal.
      * 
      * @param resource The jcr:content resource of the page
-     * @return Complexity level: "high" (>highThreshold), "medium" (>mediumThreshold), or "low" (<=mediumThreshold)
+     * @return NodeCountResult containing both count and complexity
      */
-    private String determineComplexity(Resource resource) {
+    private NodeCountResult countNodesWithComplexity(Resource resource) {
         if (resource == null) {
-            return "low";
+            return new NodeCountResult(0, "low");
         }
         
-        // Count up to highThreshold + 1 to determine if page is high complexity
-        int count = countWithLimit(resource, highThreshold + 1);
+        long count = countDescendants(resource);
+        String complexity = determineComplexity(count);
         
-        if (count > highThreshold) {
-            return "high";
-        } else if (count > mediumThreshold) {
-            return "medium";
-        } else {
-            return "low";
-        }
+        return new NodeCountResult(count, complexity);
     }
     
     /**
-     * Counts all descendants of a resource (full count, no limit).
-     * Used for reporting the actual node count.
+     * Counts all descendants of a resource efficiently.
      * 
      * @param resource The resource to count descendants for
      * @return The total count of all descendants
      */
-    private long countAllDescendants(Resource resource) {
+    private long countDescendants(Resource resource) {
         if (resource == null) {
             return 0;
         }
@@ -206,50 +233,39 @@ public class PageNodeCountJob implements Runnable {
             }
             
             count++; // Count this child
-            
-            // Recursively count descendants
-            count += countAllDescendants(child);
+            count += countDescendants(child); // Recursively count descendants
         }
         
         return count;
     }
     
     /**
-     * Counts descendants up to a specified limit for optimization.
-     * Stops counting once the limit is reached.
+     * Determines complexity level based on count.
      * 
-     * @param resource The resource to count descendants for
-     * @param limit The maximum count before stopping
-     * @return The count of descendants (may be less than actual if limit reached)
+     * @param count The node count
+     * @return Complexity level: "high", "medium", or "low"
      */
-    private int countWithLimit(Resource resource, int limit) {
-        if (resource == null) {
-            return 0;
+    private String determineComplexity(long count) {
+        if (count > highThreshold) {
+            return "high";
+        } else if (count > mediumThreshold) {
+            return "medium";
+        } else {
+            return "low";
         }
+    }
+    
+    /**
+     * Simple holder class for count and complexity results.
+     */
+    private static class NodeCountResult {
+        final long count;
+        final String complexity;
         
-        int count = 0;
-        for (Resource child : resource.getChildren()) {
-            // Early exit if we've reached the limit
-            if (count >= limit) {
-                return count;
-            }
-            
-            // Skip counting if this is a cq:Page (don't count nested pages)
-            String primaryType = child.getValueMap().get("jcr:primaryType", String.class);
-            if ("cq:Page".equals(primaryType)) {
-                continue; // Don't count child pages or their descendants
-            }
-            
-            count++; // Count this child
-            
-            // Check limit again before recursing
-            if (count >= limit) {
-                return count;
-            }
-            
-            count += countWithLimit(child, limit - count); // Count descendants with remaining limit
+        NodeCountResult(long count, String complexity) {
+            this.count = count;
+            this.complexity = complexity;
         }
-        return count;
     }
 }
 

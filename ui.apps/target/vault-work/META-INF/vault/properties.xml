@@ -4,7 +4,7 @@
 <comment>AEM Node Counter - UI Apps</comment>
 <entry key="cloudManagerTarget">none</entry>
 <entry key="allowIndexDefinitions">false</entry>
-<entry key="created">2025-11-07T22:40:31.783Z</entry>
+<entry key="created">2025-11-07T23:37:28.792Z</entry>
 <entry key="groupId">com.adobe.aem</entry>
 <entry key="name">node-counter.ui.apps</entry>
 <entry key="description">UI apps package for AEM Node Counter</entry>
