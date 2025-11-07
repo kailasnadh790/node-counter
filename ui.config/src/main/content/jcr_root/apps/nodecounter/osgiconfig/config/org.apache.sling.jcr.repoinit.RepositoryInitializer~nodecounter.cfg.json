@@ -1,0 +1,6 @@
+{
+    "scripts": [
+        "create service user nodecount-updater with path system/nodecount\n\nset ACL for nodecount-updater\n    allow jcr:read,jcr:write,jcr:modifyProperties,rep:write on /content\nend"
+    ]
+}
+

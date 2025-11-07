@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>AEM Node Counter - All</comment>
+<entry key="allowIndexDefinitions">false</entry>
+<entry key="created">2025-11-07T22:40:31.994Z</entry>
+<entry key="groupId">com.adobe.aem</entry>
+<entry key="name">node-counter.all</entry>
+<entry key="description">All content package for AEM Node Counter</entry>
+<entry key="artifactId">node-counter.all</entry>
+<entry key="version">1.0.0-SNAPSHOT</entry>
+<entry key="packageType">container</entry>
+<entry key="requiresRoot">false</entry>
+<entry key="group">com.adobe.aem</entry>
+</properties>

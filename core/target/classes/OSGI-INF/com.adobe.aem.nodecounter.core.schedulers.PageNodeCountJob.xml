@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0" name="com.adobe.aem.nodecounter.core.schedulers.PageNodeCountJob" configuration-policy="require" immediate="true" activate="activate" deactivate="deactivate" modified="activate">
+  <property name="enabled" type="Boolean" value="true"/>
+  <property name="rootPath" type="String" value="/content"/>
+  <property name="scheduler.expression" type="String" value="0 0 0 * * ?"/>
+  <property name="highThreshold" type="Integer" value="2048"/>
+  <property name="mediumThreshold" type="Integer" value="1024"/>
+  <service>
+    <provide interface="java.lang.Runnable"/>
+  </service>
+  <reference name="resolverFactory" interface="org.apache.sling.api.resource.ResourceResolverFactory" field="resolverFactory"/>
+  <reference name="scheduler" interface="org.apache.sling.commons.scheduler.Scheduler" field="scheduler"/>
+  <implementation class="com.adobe.aem.nodecounter.core.schedulers.PageNodeCountJob"/>
+</scr:component>

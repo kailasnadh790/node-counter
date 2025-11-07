@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0" name="com.adobe.aem.nodecounter.core.services.NodeCountInfoProvider" immediate="true">
+  <property name="service.description" type="String" value="Export page complexity metadata related to a page"/>
+  <property name="pageInfoProviderType" type="String" value="sites.listView.info.provider.complexity"/>
+  <service>
+    <provide interface="com.day.cq.wcm.api.PageInfoProvider"/>
+  </service>
+  <implementation class="com.adobe.aem.nodecounter.core.services.NodeCountInfoProvider"/>
+</scr:component>

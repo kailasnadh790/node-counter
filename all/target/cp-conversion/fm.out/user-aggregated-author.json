@@ -1,0 +1,82 @@
+{
+  "id":"com.adobe.aem:node-counter.all:slingosgifeature:user-aggregated-author:1.0.0-SNAPSHOT",
+  "bundles":[
+    {
+      "id":"com.adobe.aem:node-counter.core:1.0.0-SNAPSHOT",
+      "feature-origins":"com.adobe.aem:node-counter.all:slingosgifeature:1.0.0-SNAPSHOT",
+      "Bundle-SymbolicName":"node-counter.core",
+      "Bundle-Version":"1.0.0.SNAPSHOT",
+      "start-order":"20",
+      "content-package-origins":"com.adobe.aem:node-counter.all:1.0.0-SNAPSHOT"
+    }
+  ],
+  "configurations":  {
+    "com.adobe.aem.nodecounter.core.schedulers.PageNodeCountJob":    {
+      ":configurator:content-package-origins":"com.adobe.aem:node-counter.all:1.0.0-SNAPSHOT|com.adobe.aem:node-counter.ui.config:1.0.0-SNAPSHOT",
+      "enabled":"$[env:NODE_COUNTER_ENABLED;default=true]",
+      "rootPath":"$[env:NODE_COUNTER_ROOT_PATH;default=/content]",
+      "scheduler.expression":"$[env:NODE_COUNTER_CRON;default=0 0 0 * * ?]",
+      "highThreshold":"$[env:NODE_COUNTER_HIGH_THRESHOLD;default=2048]",
+      "mediumThreshold":"$[env:NODE_COUNTER_MEDIUM_THRESHOLD;default=1024]",
+      ":configurator:feature-origins-scheduler.expression":[
+        "com.adobe.aem:node-counter.all:slingosgifeature:author:1.0.0-SNAPSHOT"
+      ],
+      ":configurator:feature-origins-enabled":[
+        "com.adobe.aem:node-counter.all:slingosgifeature:author:1.0.0-SNAPSHOT"
+      ],
+      ":configurator:feature-origins-rootPath":[
+        "com.adobe.aem:node-counter.all:slingosgifeature:author:1.0.0-SNAPSHOT"
+      ],
+      ":configurator:feature-origins-highThreshold":[
+        "com.adobe.aem:node-counter.all:slingosgifeature:author:1.0.0-SNAPSHOT"
+      ],
+      ":configurator:feature-origins-mediumThreshold":[
+        "com.adobe.aem:node-counter.all:slingosgifeature:author:1.0.0-SNAPSHOT"
+      ],
+      ":configurator:feature-origins":[
+        "com.adobe.aem:node-counter.all:slingosgifeature:author:1.0.0-SNAPSHOT"
+      ]
+    },
+    "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~nodecounter":    {
+      ":configurator:content-package-origins":"com.adobe.aem:node-counter.all:1.0.0-SNAPSHOT|com.adobe.aem:node-counter.ui.config:1.0.0-SNAPSHOT",
+      "user.mapping":[
+        "node-counter.core:nodecount-updater=[nodecount-updater]"
+      ],
+      ":configurator:feature-origins-user.mapping":[
+        "com.adobe.aem:node-counter.all:slingosgifeature:author:1.0.0-SNAPSHOT"
+      ],
+      ":configurator:feature-origins":[
+        "com.adobe.aem:node-counter.all:slingosgifeature:author:1.0.0-SNAPSHOT"
+      ]
+    }
+  },
+  "assembled-features:ARTIFACTS|TRANSIENT":[
+    "com.adobe.aem:node-counter.all:slingosgifeature:1.0.0-SNAPSHOT",
+    "com.adobe.aem:node-counter.all:slingosgifeature:author:1.0.0-SNAPSHOT"
+  ],
+  "repoinit:TEXT|true":[
+    "# origin=com.adobe.aem:node-counter.all:1.0.0-SNAPSHOT|com.adobe.aem:node-counter.ui.config:1.0.0-SNAPSHOT source=org.apache.sling.jcr.repoinit.RepositoryInitializer~nodecounter",
+    "create service user nodecount-updater with path system/nodecount",
+    "",
+    "set ACL for nodecount-updater",
+    "    allow jcr:read,jcr:write,jcr:modifyProperties,rep:write on /content",
+    "end"
+  ],
+  "content-packages:ARTIFACTS|true":[
+    {
+      "id":"com.adobe.aem:node-counter.ui.config:zip:cp2fm-converted:1.0.0-SNAPSHOT",
+      "feature-origins":"com.adobe.aem:node-counter.all:slingosgifeature:1.0.0-SNAPSHOT"
+    },
+    {
+      "id":"com.adobe.aem:node-counter.ui.apps:zip:cp2fm-converted:1.0.0-SNAPSHOT",
+      "feature-origins":"com.adobe.aem:node-counter.all:slingosgifeature:1.0.0-SNAPSHOT"
+    },
+    {
+      "id":"com.adobe.aem:node-counter.all:zip:cp2fm-converted:1.0.0-SNAPSHOT",
+      "feature-origins":"com.adobe.aem:node-counter.all:slingosgifeature:1.0.0-SNAPSHOT"
+    }
+  ],
+  "artifact-rules:JSON|false":{
+
+  }
+}

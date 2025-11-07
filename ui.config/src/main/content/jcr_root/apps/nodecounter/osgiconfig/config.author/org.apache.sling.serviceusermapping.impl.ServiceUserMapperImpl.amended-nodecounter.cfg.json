@@ -1,0 +1,6 @@
+{
+    "user.mapping":[
+      "node-counter.core:nodecount-updater=[nodecount-updater]"
+    ]
+}
+

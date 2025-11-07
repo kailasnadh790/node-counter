@@ -1,0 +1,19 @@
+{
+  "id":"com.adobe.aem:node-counter.all:slingosgifeature:author:1.0.0-SNAPSHOT",
+  "configurations":  {
+    "com.adobe.aem.nodecounter.core.schedulers.PageNodeCountJob":    {
+      "enabled":"$[env:NODE_COUNTER_ENABLED;default=true]",
+      "rootPath":"$[env:NODE_COUNTER_ROOT_PATH;default=/content]",
+      "scheduler.expression":"$[env:NODE_COUNTER_CRON;default=0 0 0 * * ?]",
+      "highThreshold":"$[env:NODE_COUNTER_HIGH_THRESHOLD;default=2048]",
+      "mediumThreshold":"$[env:NODE_COUNTER_MEDIUM_THRESHOLD;default=1024]",
+      ":configurator:content-package-origins":"com.adobe.aem:node-counter.all:1.0.0-SNAPSHOT|com.adobe.aem:node-counter.ui.config:1.0.0-SNAPSHOT"
+    },
+    "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~nodecounter":    {
+      "user.mapping":[
+        "node-counter.core:nodecount-updater=[nodecount-updater]"
+      ],
+      ":configurator:content-package-origins":"com.adobe.aem:node-counter.all:1.0.0-SNAPSHOT|com.adobe.aem:node-counter.ui.config:1.0.0-SNAPSHOT"
+    }
+  }
+}

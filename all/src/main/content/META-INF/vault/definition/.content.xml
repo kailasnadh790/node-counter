@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jcr:root xmlns:vlt="http://www.day.com/jcr/vault/1.0" xmlns:jcr="http://www.jcp.org/jcr/1.0" xmlns:nt="http://www.jcp.org/jcr/nt/1.0"
+    jcr:created="{Date}2024-11-07T12:00:00.000Z"
+    jcr:createdBy="admin"
+    jcr:description="All content package for AEM Node Counter"
+    jcr:lastModified="{Date}2024-11-07T12:00:00.000Z"
+    jcr:lastModifiedBy="admin"
+    jcr:primaryType="vlt:PackageDefinition"
+    groupId="com.adobe.aem"
+    name="node-counter.all"
+    version="1.0.0-SNAPSHOT"/>
+

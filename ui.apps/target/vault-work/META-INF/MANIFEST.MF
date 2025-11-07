@@ -1,0 +1,10 @@
+Manifest-Version: 1.0
+Created-By: Apache Jackrabbit FileVault - Package Maven Plugin 1.1.6
+Build-Jdk-Spec: 21
+Implementation-Title: AEM Node Counter - UI Apps
+Implementation-Version: 1.0.0-SNAPSHOT
+Content-Package-Type: application
+Content-Package-Id: com.adobe.aem:node-counter.ui.apps:1.0.0-SNAPSHOT
+Content-Package-Description: UI apps package for AEM Node Counter
+Content-Package-Roots: /apps/wcm/core/content/common/availablecolumns
+
