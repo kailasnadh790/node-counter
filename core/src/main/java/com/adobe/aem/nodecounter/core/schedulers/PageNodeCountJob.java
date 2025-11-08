@@ -156,23 +156,26 @@ public class PageNodeCountJob implements Runnable {
                             String oldComplexity = props.get("complexity", String.class);
                             
                             // OPTIMIZED: Skip update if values haven't changed
-                            if (result.count == (oldNodeCount != null ? oldNodeCount : -1L) && 
-                                result.complexity.equals(oldComplexity)) {
+                            boolean countUnchanged = result.count == (oldNodeCount != null ? oldNodeCount : -1L);
+                            boolean complexityUnchanged = result.complexity != null && result.complexity.equals(oldComplexity);
+                            
+                            if (countUnchanged && complexityUnchanged) {
                                 LOG.debug("Skipping page (unchanged): {}", pagePath);
                                 pagesSkipped.incrementAndGet();
                             } else {
+                                // Always set both properties together
                                 props.put("nodeCount", result.count);
                                 props.put("complexity", result.complexity);
                                 pagesUpdated.incrementAndGet();
+                                
+                                LOG.info("Updating page: {} - nodeCount: {} -> {}, complexity: '{}' -> '{}'", 
+                                        pagePath, oldNodeCount, result.count, oldComplexity, result.complexity);
                                 
                                 // OPTIMIZED: Batch commits instead of committing per page
                                 if (pagesUpdated.get() % COMMIT_BATCH_SIZE == 0) {
                                     rr.commit();
                                     LOG.debug("Batch commit at {} pages", pagesUpdated.get());
                                 }
-                                
-                                LOG.debug("Updated page: {} (nodeCount: {} -> {}, complexity: {} -> {})", 
-                                        pagePath, oldNodeCount, result.count, oldComplexity, result.complexity);
                             }
                         } else {
                             LOG.warn("Could not adapt jcr:content to ModifiableValueMap for: {}", pagePath);
