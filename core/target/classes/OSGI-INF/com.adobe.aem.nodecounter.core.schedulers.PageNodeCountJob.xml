@@ -5,6 +5,11 @@
   <property name="scheduler.expression" type="String" value="0 0 0 * * ?"/>
   <property name="highThreshold" type="Integer" value="2048"/>
   <property name="mediumThreshold" type="Integer" value="1024"/>
+  <property name="threadPoolSize" type="Integer" value="4"/>
+  <property name="maxPagesPerRun" type="Integer" value="5000"/>
+  <property name="batchCommitSize" type="Integer" value="50"/>
+  <property name="processOnlyModified" type="Boolean" value="false"/>
+  <property name="modifiedSinceHours" type="Integer" value="24"/>
   <service>
     <provide interface="java.lang.Runnable"/>
   </service>

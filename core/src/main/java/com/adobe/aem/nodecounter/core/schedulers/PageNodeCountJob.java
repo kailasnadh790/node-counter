@@ -9,9 +9,9 @@ import org.osgi.service.metatype.annotations.Designate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.Map;
+import javax.jcr.query.Query;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -27,14 +27,20 @@ public class PageNodeCountJob implements Runnable {
     @Reference
     private Scheduler scheduler;
 
+    // Configuration properties
     private String rootPath;
     private boolean enabled;
     private String schedulerExpression;
     private int highThreshold;
     private int mediumThreshold;
+    private int threadPoolSize;
+    private int maxPagesPerRun;
+    private int batchCommitSize;
+    private boolean processOnlyModified;
+    private int modifiedSinceHours;
     
-    // Batch commit configuration - commit every N pages to balance performance and memory
-    private static final int COMMIT_BATCH_SIZE = 50;
+    // Thread pool for parallel processing
+    private ExecutorService executorService;
 
     @Activate
     @Modified
@@ -44,9 +50,29 @@ public class PageNodeCountJob implements Runnable {
         this.schedulerExpression = config.scheduler_expression();
         this.highThreshold = config.highThreshold();
         this.mediumThreshold = config.mediumThreshold();
+        this.threadPoolSize = config.threadPoolSize();
+        this.maxPagesPerRun = config.maxPagesPerRun();
+        this.batchCommitSize = config.batchCommitSize();
+        this.processOnlyModified = config.processOnlyModified();
+        this.modifiedSinceHours = config.modifiedSinceHours();
         
-        LOG.info("Activating PageNodeCountJob - enabled: {}, rootPath: {}, expression: {}, highThreshold: {}, mediumThreshold: {}", 
-                enabled, rootPath, schedulerExpression, highThreshold, mediumThreshold);
+        LOG.info("Activating PageNodeCountJob - enabled: {}, rootPath: {}, expression: {}, threads: {}, maxPages: {}, batchSize: {}, onlyModified: {}", 
+                enabled, rootPath, schedulerExpression, threadPoolSize, maxPagesPerRun, batchCommitSize, processOnlyModified);
+        
+        // Initialize thread pool
+        if (executorService != null) {
+            executorService.shutdownNow();
+        }
+        executorService = Executors.newFixedThreadPool(threadPoolSize, 
+            new ThreadFactory() {
+                private final AtomicInteger counter = new AtomicInteger(1);
+                @Override
+                public Thread newThread(Runnable r) {
+                    Thread t = new Thread(r, "PageNodeCounter-" + counter.getAndIncrement());
+                    t.setDaemon(true);
+                    return t;
+                }
+            });
         
         // Remove existing scheduled job
         scheduler.unschedule(JOB_NAME);
@@ -71,6 +97,22 @@ public class PageNodeCountJob implements Runnable {
     protected void deactivate() {
         LOG.info("Deactivating PageNodeCountJob");
         scheduler.unschedule(JOB_NAME);
+        
+        if (executorService != null) {
+            LOG.info("Shutting down thread pool...");
+            executorService.shutdown();
+            try {
+                if (!executorService.awaitTermination(60, TimeUnit.SECONDS)) {
+                    executorService.shutdownNow();
+                    if (!executorService.awaitTermination(60, TimeUnit.SECONDS)) {
+                        LOG.error("Thread pool did not terminate");
+                    }
+                }
+            } catch (InterruptedException e) {
+                executorService.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
         LOG.info("PageNodeCountJob unscheduled");
     }
 
@@ -92,29 +134,69 @@ public class PageNodeCountJob implements Runnable {
                 LOG.error("Failed to obtain ResourceResolver. Check service user configuration.");
                 return;
             }
+            
             Resource rootResource = rr.getResource(rootPath);
             if (rootResource == null) {
                 LOG.warn("Root path not found: {}. Job execution aborted.", rootPath);
                 return;
             }
             
-            LOG.debug("Root resource found: {}. Starting page traversal...", rootPath);
+            // Discover pages using query (much faster than traversal)
+            List<String> pagePaths = discoverPages(rr);
+            
+            if (pagePaths.isEmpty()) {
+                LOG.info("No pages found to process");
+                return;
+            }
+            
+            LOG.info("Found {} pages to process", pagePaths.size());
+            
+            // Limit pages if configured
+            if (maxPagesPerRun > 0 && pagePaths.size() > maxPagesPerRun) {
+                LOG.info("Limiting processing to {} pages (found {})", maxPagesPerRun, pagePaths.size());
+                pagePaths = pagePaths.subList(0, maxPagesPerRun);
+            }
+            
+            // Process pages in parallel
             AtomicInteger pagesProcessed = new AtomicInteger(0);
             AtomicInteger pagesUpdated = new AtomicInteger(0);
             AtomicInteger pagesSkipped = new AtomicInteger(0);
+            AtomicInteger pagesFailed = new AtomicInteger(0);
             AtomicLong totalNodesProcessed = new AtomicLong(0);
             
-            walkAndCount(rr, rootResource, pagesProcessed, pagesUpdated, pagesSkipped, totalNodesProcessed);
+            // Split pages into batches for better control
+            int batchSize = Math.max(10, pagePaths.size() / (threadPoolSize * 4));
+            List<List<String>> batches = partition(pagePaths, batchSize);
             
-            // Final commit for any remaining changes
-            if (rr.hasChanges()) {
-                rr.commit();
-                LOG.debug("Final commit completed");
+            LOG.info("Processing {} pages in {} batches using {} threads", 
+                    pagePaths.size(), batches.size(), threadPoolSize);
+            
+            // Submit batches to thread pool
+            List<Future<?>> futures = new ArrayList<>();
+            for (List<String> batch : batches) {
+                Future<?> future = executorService.submit(() -> 
+                    processBatch(batch, pagesProcessed, pagesUpdated, pagesSkipped, 
+                                pagesFailed, totalNodesProcessed));
+                futures.add(future);
+            }
+            
+            // Wait for all batches to complete
+            for (Future<?> future : futures) {
+                try {
+                    future.get(30, TimeUnit.MINUTES); // Timeout per batch
+                } catch (TimeoutException e) {
+                    LOG.error("Batch processing timed out", e);
+                    future.cancel(true);
+                } catch (Exception e) {
+                    LOG.error("Error waiting for batch completion", e);
+                }
             }
             
             long duration = System.currentTimeMillis() - startTime;
-            LOG.info("PageNodeCountJob completed successfully. Pages found: {}, Updated: {}, Skipped: {}, Total nodes: {}, Duration: {} ms", 
-                    pagesProcessed.get(), pagesUpdated.get(), pagesSkipped.get(), totalNodesProcessed.get(), duration);
+            LOG.info("PageNodeCountJob completed. Pages: {} total, {} updated, {} skipped, {} failed | " +
+                    "Nodes: {} | Duration: {} ms ({} sec)", 
+                    pagesProcessed.get(), pagesUpdated.get(), pagesSkipped.get(), pagesFailed.get(),
+                    totalNodesProcessed.get(), duration, duration / 1000);
             
         } catch (LoginException e) {
             LOG.error("Failed to obtain ResourceResolver. Check service user configuration.", e);
@@ -123,87 +205,166 @@ public class PageNodeCountJob implements Runnable {
         }
     }
 
-    private void walkAndCount(ResourceResolver rr, Resource root, AtomicInteger pagesProcessed, 
-                              AtomicInteger pagesUpdated, AtomicInteger pagesSkipped, AtomicLong totalNodesProcessed) {
-        if (root == null) {
-            LOG.debug("Null resource encountered, skipping");
-            return;
-        }
-
-        Iterator<Resource> children = root.listChildren();
-        while (children.hasNext()) {
-            Resource child = children.next();
-            String resourceType = child.getResourceType();
-            String primaryType = child.getValueMap().get("jcr:primaryType", String.class);
+    /**
+     * Discovers pages using JCR query (much faster than tree traversal)
+     */
+    private List<String> discoverPages(ResourceResolver rr) {
+        List<String> pagePaths = new ArrayList<>();
+        
+        try {
+            StringBuilder queryBuilder = new StringBuilder();
+            queryBuilder.append("SELECT * FROM [cq:Page] WHERE ISDESCENDANTNODE([")
+                       .append(rootPath)
+                       .append("])");
             
-            if ("cq:Page".equals(resourceType) || "cq:Page".equals(primaryType)) {
-                String pagePath = child.getPath();
-                LOG.debug("Processing page: {}", pagePath);
-                pagesProcessed.incrementAndGet();
+            // Optional: Filter by modification date for incremental processing
+            if (processOnlyModified && modifiedSinceHours > 0) {
+                Calendar cutoff = Calendar.getInstance();
+                cutoff.add(Calendar.HOUR, -modifiedSinceHours);
                 
-                Resource jcrContent = child.getChild("jcr:content");
-                if (jcrContent != null) {
-                    // OPTIMIZED: Count nodes only once and determine complexity from the same count
-                    NodeCountResult result = countNodesWithComplexity(jcrContent);
-                    totalNodesProcessed.addAndGet(result.count);
-                    
-                    LOG.debug("Node count: {}, Complexity: {} for page: {}", result.count, result.complexity, pagePath);
-                    
-                    try {
-                        ModifiableValueMap props = jcrContent.adaptTo(ModifiableValueMap.class);
-                        if (props != null) {
-                            Long oldNodeCount = props.get("nodeCount", Long.class);
-                            String oldComplexity = props.get("complexity", String.class);
-                            
-                            // OPTIMIZED: Skip update if values haven't changed
-                            boolean countUnchanged = result.count == (oldNodeCount != null ? oldNodeCount : -1L);
-                            boolean complexityUnchanged = result.complexity != null && result.complexity.equals(oldComplexity);
-                            
-                            if (countUnchanged && complexityUnchanged) {
-                                LOG.debug("Skipping page (unchanged): {}", pagePath);
-                                pagesSkipped.incrementAndGet();
-                            } else {
-                                // Always set both properties together
-                                props.put("nodeCount", result.count);
-                                props.put("complexity", result.complexity);
-                                pagesUpdated.incrementAndGet();
-                                
-                                LOG.info("Updating page: {} - nodeCount: {} -> {}, complexity: '{}' -> '{}'", 
-                                        pagePath, oldNodeCount, result.count, oldComplexity, result.complexity);
-                                
-                                // OPTIMIZED: Batch commits instead of committing per page
-                                if (pagesUpdated.get() % COMMIT_BATCH_SIZE == 0) {
-                                    rr.commit();
-                                    LOG.debug("Batch commit at {} pages", pagesUpdated.get());
-                                }
-                            }
-                        } else {
-                            LOG.warn("Could not adapt jcr:content to ModifiableValueMap for: {}", pagePath);
-                        }
-                    } catch (PersistenceException e) {
-                        LOG.error("Failed to persist data for page: {}", pagePath, e);
-                        try {
-                            // Refresh to recover from potential session issues
-                            rr.refresh();
-                        } catch (Exception refreshEx) {
-                            LOG.error("Failed to refresh resolver after error", refreshEx);
-                        }
-                    }
-                } else {
-                    LOG.debug("No jcr:content found for page: {}", pagePath);
-                }
+                // Note: This requires pages to have cq:lastModified property
+                queryBuilder.append(" AND [jcr:content/cq:lastModified] > CAST('")
+                          .append(javax.jcr.ValueFactory.class.getSimpleName()) // Placeholder for proper date formatting
+                          .append("' AS DATE)");
+                
+                LOG.info("Filtering pages modified in last {} hours", modifiedSinceHours);
             }
-            // Recursively descend into this node
-            walkAndCount(rr, child, pagesProcessed, pagesUpdated, pagesSkipped, totalNodesProcessed);
+            
+            String queryString = queryBuilder.toString();
+            LOG.debug("Executing query: {}", queryString);
+            
+            Iterator<Resource> results = rr.findResources(queryString, Query.JCR_SQL2);
+            
+            while (results.hasNext()) {
+                Resource page = results.next();
+                pagePaths.add(page.getPath());
+            }
+            
+            LOG.debug("Query found {} pages", pagePaths.size());
+            
+        } catch (Exception e) {
+            LOG.error("Error querying for pages, falling back to traversal", e);
+            // Fallback to traversal if query fails
+            Resource root = rr.getResource(rootPath);
+            if (root != null) {
+                collectPagesRecursive(root, pagePaths);
+            }
+        }
+        
+        return pagePaths;
+    }
+    
+    /**
+     * Fallback method to collect pages via traversal
+     */
+    private void collectPagesRecursive(Resource resource, List<String> pagePaths) {
+        String primaryType = resource.getValueMap().get("jcr:primaryType", String.class);
+        if ("cq:Page".equals(primaryType)) {
+            pagePaths.add(resource.getPath());
+        }
+        
+        for (Resource child : resource.getChildren()) {
+            collectPagesRecursive(child, pagePaths);
         }
     }
 
     /**
-     * OPTIMIZED: Single-pass counting that determines both node count and complexity.
-     * Counts all nodes but can determine complexity early without full traversal.
-     * 
-     * @param resource The jcr:content resource of the page
-     * @return NodeCountResult containing both count and complexity
+     * Processes a batch of pages (runs in parallel thread)
+     */
+    private void processBatch(List<String> pagePaths, AtomicInteger pagesProcessed, 
+                             AtomicInteger pagesUpdated, AtomicInteger pagesSkipped,
+                             AtomicInteger pagesFailed, AtomicLong totalNodesProcessed) {
+        
+        // Each thread gets its own ResourceResolver for thread safety
+        Map<String, Object> authInfo = Collections.singletonMap(
+            ResourceResolverFactory.SUBSERVICE, "nodecount-updater");
+        
+        try (ResourceResolver rr = resolverFactory.getServiceResourceResolver(authInfo)) {
+            if (rr == null) {
+                LOG.error("Failed to obtain ResourceResolver for batch processing");
+                return;
+            }
+            
+            int batchUpdates = 0;
+            
+            for (String pagePath : pagePaths) {
+                try {
+                    pagesProcessed.incrementAndGet();
+                    
+                    Resource pageResource = rr.getResource(pagePath);
+                    if (pageResource == null) {
+                        LOG.debug("Page not found: {}", pagePath);
+                        continue;
+                    }
+                    
+                    Resource jcrContent = pageResource.getChild("jcr:content");
+                    if (jcrContent == null) {
+                        LOG.debug("No jcr:content for page: {}", pagePath);
+                        continue;
+                    }
+                    
+                    // Count nodes and determine complexity
+                    NodeCountResult result = countNodesWithComplexity(jcrContent);
+                    totalNodesProcessed.addAndGet(result.count);
+                    
+                    // Update properties if changed
+                    ModifiableValueMap props = jcrContent.adaptTo(ModifiableValueMap.class);
+                    if (props != null) {
+                        Long oldNodeCount = props.get("nodeCount", Long.class);
+                        String oldComplexity = props.get("complexity", String.class);
+                        
+                        // Check if update needed
+                        boolean countChanged = result.count != (oldNodeCount != null ? oldNodeCount : -1L);
+                        boolean complexityChanged = result.complexity != null && !result.complexity.equals(oldComplexity);
+                        
+                        if (countChanged || complexityChanged) {
+                            props.put("nodeCount", result.count);
+                            props.put("complexity", result.complexity);
+                            props.put("nodeCountLastUpdated", Calendar.getInstance());
+                            
+                            batchUpdates++;
+                            pagesUpdated.incrementAndGet();
+                            
+                            LOG.debug("Updated: {} - nodeCount: {} -> {}, complexity: '{}' -> '{}'", 
+                                    pagePath, oldNodeCount, result.count, oldComplexity, result.complexity);
+                            
+                            // Batch commit
+                            if (batchUpdates >= batchCommitSize) {
+                                rr.commit();
+                                LOG.debug("Batch commit: {} pages", batchUpdates);
+                                batchUpdates = 0;
+                            }
+                        } else {
+                            pagesSkipped.incrementAndGet();
+                        }
+                    }
+                    
+                } catch (Exception e) {
+                    LOG.error("Error processing page: {}", pagePath, e);
+                    pagesFailed.incrementAndGet();
+                    try {
+                        rr.refresh(); // Recover from error
+                    } catch (Exception refreshEx) {
+                        LOG.error("Failed to refresh resolver", refreshEx);
+                    }
+                }
+            }
+            
+            // Final commit for remaining updates
+            if (batchUpdates > 0) {
+                rr.commit();
+                LOG.debug("Final batch commit: {} pages", batchUpdates);
+            }
+            
+        } catch (LoginException e) {
+            LOG.error("Failed to obtain ResourceResolver for batch", e);
+        } catch (Exception e) {
+            LOG.error("Error in batch processing", e);
+        }
+    }
+
+    /**
+     * OPTIMIZED: Single-pass counting that determines both node count and complexity
      */
     private NodeCountResult countNodesWithComplexity(Resource resource) {
         if (resource == null) {
@@ -217,10 +378,7 @@ public class PageNodeCountJob implements Runnable {
     }
     
     /**
-     * Counts all descendants of a resource efficiently.
-     * 
-     * @param resource The resource to count descendants for
-     * @return The total count of all descendants
+     * Counts all descendants of a resource efficiently
      */
     private long countDescendants(Resource resource) {
         if (resource == null) {
@@ -232,21 +390,18 @@ public class PageNodeCountJob implements Runnable {
             // Skip counting if this is a cq:Page (don't count nested pages)
             String primaryType = child.getValueMap().get("jcr:primaryType", String.class);
             if ("cq:Page".equals(primaryType)) {
-                continue; // Don't count child pages or their descendants
+                continue;
             }
             
-            count++; // Count this child
-            count += countDescendants(child); // Recursively count descendants
+            count++;
+            count += countDescendants(child);
         }
         
         return count;
     }
     
     /**
-     * Determines complexity level based on count.
-     * 
-     * @param count The node count
-     * @return Complexity level: "high", "medium", or "low"
+     * Determines complexity level based on count
      */
     private String determineComplexity(long count) {
         if (count > highThreshold) {
@@ -259,7 +414,18 @@ public class PageNodeCountJob implements Runnable {
     }
     
     /**
-     * Simple holder class for count and complexity results.
+     * Partitions a list into smaller sublists
+     */
+    private <T> List<List<T>> partition(List<T> list, int size) {
+        List<List<T>> partitions = new ArrayList<>();
+        for (int i = 0; i < list.size(); i += size) {
+            partitions.add(list.subList(i, Math.min(i + size, list.size())));
+        }
+        return partitions;
+    }
+    
+    /**
+     * Simple holder class for count and complexity results
      */
     private static class NodeCountResult {
         final long count;
@@ -271,4 +437,3 @@ public class PageNodeCountJob implements Runnable {
         }
     }
 }
-

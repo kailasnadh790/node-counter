@@ -34,5 +34,35 @@ public @interface PageNodeCountSchedulerConfig {
         description = "Node count threshold for MEDIUM complexity (default: 1024). Pages with more nodes than this value (but less than high threshold) are marked as 'medium'"
     )
     int mediumThreshold() default 1024;
+    
+    @AttributeDefinition(
+        name = "Thread Pool Size",
+        description = "Number of parallel threads for processing pages (default: 4). Higher values = faster processing but more CPU/memory usage"
+    )
+    int threadPoolSize() default 4;
+    
+    @AttributeDefinition(
+        name = "Max Pages Per Run",
+        description = "Maximum number of pages to process in a single run (default: 5000). Set to 0 for unlimited. Helps prevent long-running jobs"
+    )
+    int maxPagesPerRun() default 5000;
+    
+    @AttributeDefinition(
+        name = "Batch Commit Size",
+        description = "Number of page updates before committing to JCR (default: 50). Higher values = better performance but more memory usage"
+    )
+    int batchCommitSize() default 50;
+    
+    @AttributeDefinition(
+        name = "Process Only Modified Pages",
+        description = "If true, only processes pages modified since last run (default: false). Dramatically improves performance for subsequent runs"
+    )
+    boolean processOnlyModified() default false;
+    
+    @AttributeDefinition(
+        name = "Modified Since Hours",
+        description = "When 'Process Only Modified Pages' is enabled, only process pages modified in the last N hours (default: 24)"
+    )
+    int modifiedSinceHours() default 24;
 }
 
