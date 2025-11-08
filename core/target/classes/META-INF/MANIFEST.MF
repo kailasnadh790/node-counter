@@ -5,28 +5,23 @@ Bundle-ManifestVersion: 2
 Bundle-Name: AEM Node Counter - Core
 Bundle-SymbolicName: node-counter.core
 Bundle-Version: 1.0.0.SNAPSHOT
-Import-Package: com.day.cq.wcm.api;version="[1.32,2)",javax.json,javax
- .servlet;version="[2.6,3)",org.apache.sling.api;version="[2.3,3)",org
- .apache.sling.api.resource;version="[2.13,3)",org.apache.sling.api.se
- rvlets;version="[2.4,3)",org.apache.sling.commons.json;version="[2.1,
- 3)",org.apache.sling.commons.scheduler;version="[2.5,3)",org.slf4j;ve
- rsion="[1.7,2)",javax.annotation;version="0.0.0"
+Import-Package: com.day.cq.wcm.api;version="[1.32,2)",org.apache.sling
+ .api;version="[2.3,3)",org.apache.sling.api.resource;version="[2.13,3
+ )",org.apache.sling.commons.json;version="[2.1,3)",org.apache.sling.c
+ ommons.scheduler;version="[2.5,3)",org.slf4j;version="[1.7,2)",javax.
+ annotation;version="0.0.0"
 Private-Package: com.adobe.aem.nodecounter.core.config,com.adobe.aem.n
- odecounter.core.schedulers,com.adobe.aem.nodecounter.core.services,co
- m.adobe.aem.nodecounter.core.servlets
+ odecounter.core.schedulers,com.adobe.aem.nodecounter.core.services
 Provide-Capability: osgi.service;objectClass:List<String>="com.day.cq.
  wcm.api.PageInfoProvider";uses:="com.day.cq.wcm.api",osgi.service;obj
- ectClass:List<String>="java.lang.Runnable",osgi.service;objectClass:L
- ist<String>="javax.servlet.Servlet";uses:="javax.servlet"
+ ectClass:List<String>="java.lang.Runnable"
 Require-Capability: osgi.service;filter:="(objectClass=org.apache.slin
  g.api.resource.ResourceResolverFactory)";effective:=active,osgi.servi
  ce;filter:="(objectClass=org.apache.sling.commons.scheduler.Scheduler
  )";effective:=active,osgi.extender;filter:="(&(osgi.extender=osgi.com
- ponent)(version>=1.5.0)(!(version>=2.0.0)))",osgi.contract;osgi.contr
- act=JavaJSONP;filter:="(&(osgi.contract=JavaJSONP)(version=1.1.0))",o
- sgi.ee;filter:="(&(osgi.ee=JavaSE)(version=1.8))"
+ ponent)(version>=1.5.0)(!(version>=2.0.0)))",osgi.ee;filter:="(&(osgi
+ .ee=JavaSE)(version=1.8))"
 Service-Component: OSGI-INF/com.adobe.aem.nodecounter.core.schedulers.
  PageNodeCountJob.xml,OSGI-INF/com.adobe.aem.nodecounter.core.services
- .NodeCountInfoProvider.xml,OSGI-INF/com.adobe.aem.nodecounter.core.se
- rvlets.PageComplexityServlet.xml
+ .NodeCountInfoProvider.xml
 

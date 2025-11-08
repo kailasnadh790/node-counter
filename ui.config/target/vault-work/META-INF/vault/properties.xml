@@ -4,7 +4,7 @@
 <comment>AEM Node Counter - UI Config</comment>
 <entry key="cloudManagerTarget">none</entry>
 <entry key="allowIndexDefinitions">false</entry>
-<entry key="created">2025-11-08T06:15:56.823Z</entry>
+<entry key="created">2025-11-08T06:23:38.251Z</entry>
 <entry key="groupId">com.adobe.aem</entry>
 <entry key="name">node-counter.ui.config</entry>
 <entry key="description">UI config package for AEM Node Counter</entry>

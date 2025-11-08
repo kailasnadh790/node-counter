@@ -2,5 +2,3 @@ com/adobe/aem/nodecounter/core/config/PageNodeCountSchedulerConfig.class
 com/adobe/aem/nodecounter/core/schedulers/PageNodeCountJob$NodeCountResult.class
 com/adobe/aem/nodecounter/core/services/NodeCountInfoProvider.class
 com/adobe/aem/nodecounter/core/schedulers/PageNodeCountJob.class
-com/adobe/aem/nodecounter/core/servlets/PageComplexityServlet$PageInfo.class
-com/adobe/aem/nodecounter/core/servlets/PageComplexityServlet.class
