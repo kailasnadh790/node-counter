@@ -3,7 +3,7 @@
 <properties>
 <comment>AEM Node Counter - All</comment>
 <entry key="allowIndexDefinitions">false</entry>
-<entry key="created">2025-11-08T06:23:38.386Z</entry>
+<entry key="created">2025-11-08T22:09:15.920Z</entry>
 <entry key="groupId">com.adobe.aem</entry>
 <entry key="name">node-counter.all</entry>
 <entry key="description">All content package for AEM Node Counter</entry>
