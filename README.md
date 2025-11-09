@@ -79,7 +79,7 @@ After installation, configure the scheduler via OSGi Configuration:
 
 | Property | Description | Default |
 |----------|-------------|---------|
-| Enabled | Enable or disable the job | true |
+| Enabled | Enable or disable the job | false |
 | Content Root Path | Root path to analyze (e.g., /content/mysite) | /content |
 | Scheduler Cron Expression | When to run (cron format) | 0 0 0 * * ? (daily at midnight) |
 | High Complexity Threshold | Node count for "high" complexity | 2048 |
@@ -94,6 +94,8 @@ After installation, configure the scheduler via OSGi Configuration:
 | Batch Commit Size | Pages per commit batch | 20 |
 | Process Only Modified Pages | Only process modified pages | false |
 | Modified Since Hours | Look-back window for modified pages | 24 |
+
+> **⚠️ Important:** The job is **disabled by default**. Configure your settings, then set `Enabled=true` to activate.
 
 > **💡 Tip:** For initial deployment, use `processOnlyModified=false` to scan all pages. Then enable it for 50-100x faster incremental updates!
 

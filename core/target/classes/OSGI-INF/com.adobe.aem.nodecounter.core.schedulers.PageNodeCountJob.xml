@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0" name="com.adobe.aem.nodecounter.core.schedulers.PageNodeCountJob" configuration-policy="require" immediate="true" activate="activate" deactivate="deactivate" modified="activate">
-  <property name="enabled" type="Boolean" value="true"/>
+  <property name="enabled" type="Boolean" value="false"/>
   <property name="rootPath" type="String" value="/content"/>
   <property name="scheduler.expression" type="String" value="0 0 0 * * ?"/>
   <property name="highThreshold" type="Integer" value="2048"/>

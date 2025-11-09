@@ -9,7 +9,7 @@ public @interface PageNodeCountSchedulerConfig {
         name = "Enabled",
         description = "Enable or disable the node counter job"
     )
-    boolean enabled() default true;
+    boolean enabled() default false;
 
     @AttributeDefinition(
         name = "Content Root Path",

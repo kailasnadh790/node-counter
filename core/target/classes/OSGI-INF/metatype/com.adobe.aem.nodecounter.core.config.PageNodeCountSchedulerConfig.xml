@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <metatype:MetaData xmlns:metatype="http://www.osgi.org/xmlns/metatype/v1.2.0" localization="OSGI-INF/l10n/com.adobe.aem.nodecounter.core.config.PageNodeCountSchedulerConfig">
   <OCD id="com.adobe.aem.nodecounter.core.config.PageNodeCountSchedulerConfig" name="AEM Node Counter Scheduler Config" description="">
-    <AD id="enabled" type="Boolean" name="Enabled" description="Enable or disable the node counter job" default="true"/>
+    <AD id="enabled" type="Boolean" name="Enabled" description="Enable or disable the node counter job" default="false"/>
     <AD id="rootPath" type="String" name="Content Root Path" description="The root path under which pages will be checked (e.g. /content/mysite)" default="/content"/>
     <AD id="scheduler.expression" type="String" name="Scheduler Cron Expression" description="CRON expression to run the job (e.g. '0 0 0 * * ?' for daily at midnight, '0 0 * * * ?' for every hour, '0 * * * * ?' for every minute)" default="0\ 0\ 0\ *\ *\ ?"/>
     <AD id="highThreshold" type="Integer" name="High Complexity Threshold" description="Node count threshold for HIGH complexity (default: 2048). Pages with more nodes than this value are marked as 'high'" default="2048"/>
