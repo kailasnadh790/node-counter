@@ -6,7 +6,6 @@ A standalone AEM package that automatically counts nodes in pages and sets a com
 
 - **Automated Scheduler**: Runs on a configurable cron schedule to analyze all pages under a specified root path
 - **Complexity Classification**: Automatically categorizes pages as "low", "medium", or "high" complexity based on node count
-- **REST API**: Provides servlet endpoints to query node counts and complexity on-demand
 - **Configurable Thresholds**: Customize high and medium complexity thresholds via OSGi configuration
 - **Service User**: Uses a dedicated service user with appropriate permissions
 - **⚡ High Performance**: Parallel processing with configurable thread pools (handles 100K+ pages efficiently)
@@ -17,7 +16,7 @@ A standalone AEM package that automatically counts nodes in pages and sets a com
 
 The package consists of the following modules:
 
-- **core**: Contains Java code (scheduler, servlet, configuration)
+- **core**: Contains Java code (scheduler, configuration)
 - **ui.apps.structure**: Repository structure definitions
 - **ui.apps**: UI components and column view definitions for Sites admin
 - **ui.config**: OSGi configurations and service user mappings
@@ -130,10 +129,6 @@ The `PageNodeCountJob` runs on the configured schedule:
 - **high**: Node count > High Threshold (default: 2048)
 - **medium**: Node count > Medium Threshold and ≤ High Threshold (default: 1024-2048)
 - **low**: Node count ≤ Medium Threshold (default: ≤1024)
-
-### REST API
-
-The package provides a servlet at `/bin/nodecounter/page` with two modes:
 
 #### Single Page Analysis
 
