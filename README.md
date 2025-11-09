@@ -91,11 +91,13 @@ After installation, configure the scheduler via OSGi Configuration:
 |----------|-------------|---------|
 | Thread Pool Size | Number of parallel threads (1-16) | 4 |
 | Max Pages Per Run | Max pages per execution (0=unlimited) | 5000 |
-| Batch Commit Size | Pages per commit batch | 50 |
+| Batch Commit Size | Pages per commit batch | 20 |
 | Process Only Modified Pages | Only process modified pages | false |
 | Modified Since Hours | Look-back window for modified pages | 24 |
 
 > **💡 Tip:** For initial deployment, use `processOnlyModified=false` to scan all pages. Then enable it for 50-100x faster incremental updates!
+
+> **⚡ Immediate Execution:** When you enable the job via OSGi config (disabled → enabled), it runs immediately in addition to the scheduled cron times.
 
 ### Example Cron Expressions
 
@@ -271,7 +273,8 @@ The Node Counter is optimized for **enterprise-scale deployments**:
 1. **Initial Scan:** Use 8 threads, unlimited pages, `processOnlyModified=false`
 2. **Daily Updates:** Use 4 threads, enable `processOnlyModified=true` for 50-100x speedup
 3. **Large Sites:** Split by content area or use smaller `maxPagesPerRun` values
-4. **Memory:** Adjust `batchCommitSize` if experiencing OutOfMemory issues
+4. **High Contention:** Lower `batchCommitSize` (10-20) and reduce threads (2-4) to minimize conflicts
+5. **Low Contention:** Increase `batchCommitSize` (50-100) for better performance in off-hours
 
 📖 **See [PERFORMANCE_TUNING.md](PERFORMANCE_TUNING.md) for detailed configuration guide**
 
@@ -290,6 +293,8 @@ The Node Counter is optimized for **enterprise-scale deployments**:
 2. Verify cron expression is valid
 3. Check logs for errors: `http://localhost:4502/system/console/slinglog`
 
+**Tip:** Toggle the "Enabled" setting from false → true to trigger an immediate execution for testing.
+
 ### Permission Errors
 
 Ensure the service user `nodecount-updater` has been created:
@@ -304,6 +309,20 @@ Search for "nodecount-updater" in system/nodecount.
 1. Verify the scheduler has run at least once
 2. Check the configured root path exists
 3. Review logs for specific page errors
+
+### JCR Merge Conflicts
+
+If you see errors like `OakState0001: Unresolved conflicts` in logs:
+
+**Cause:** Multiple threads or authors editing the same pages simultaneously
+
+**Solutions:**
+1. **Reduce batch commit size** (try 10-20 instead of 50)
+2. **Lower thread count** (try 2 instead of 4) in high-contention environments
+3. **Schedule during off-hours** when authoring activity is low
+4. **Enable incremental mode** to avoid processing actively edited pages
+
+The default batch size of 20 is optimized to minimize conflicts while maintaining good performance.
 
 ## License
 
