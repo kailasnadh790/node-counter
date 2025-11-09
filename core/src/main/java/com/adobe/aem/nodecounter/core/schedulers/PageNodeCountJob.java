@@ -39,12 +39,20 @@ public class PageNodeCountJob implements Runnable {
     private boolean processOnlyModified;
     private int modifiedSinceHours;
     
+    // Track previous enabled state to detect enable transitions
+    private boolean previouslyEnabled = false;
+    
     // Thread pool for parallel processing
     private ExecutorService executorService;
 
     @Activate
     @Modified
     protected void activate(PageNodeCountSchedulerConfig config) {
+        // Detect if enabled is changing from false to true
+        boolean wasDisabled = !this.previouslyEnabled;
+        boolean nowEnabled = config.enabled();
+        boolean justEnabled = wasDisabled && nowEnabled;
+        
         this.rootPath = config.rootPath();
         this.enabled = config.enabled();
         this.schedulerExpression = config.scheduler_expression();
@@ -74,12 +82,23 @@ public class PageNodeCountJob implements Runnable {
                 }
             });
         
-        // Remove existing scheduled job
+        // Remove existing scheduled jobs
         scheduler.unschedule(JOB_NAME);
+        scheduler.unschedule(JOB_NAME + ".immediate");
         
         // Schedule with config expression if enabled
         if (enabled) {
             try {
+                // If job was just enabled (not initial activation), run immediately
+                if (justEnabled) {
+                    ScheduleOptions immediateOptions = scheduler.NOW();
+                    immediateOptions.name(JOB_NAME + ".immediate");
+                    immediateOptions.canRunConcurrently(false);
+                    scheduler.schedule(this, immediateOptions);
+                    LOG.info("PageNodeCountJob enabled - scheduling immediate execution");
+                }
+                
+                // Schedule recurring cron job
                 ScheduleOptions options = scheduler.EXPR(schedulerExpression);
                 options.name(JOB_NAME);
                 options.canRunConcurrently(false);
@@ -91,12 +110,16 @@ public class PageNodeCountJob implements Runnable {
         } else {
             LOG.info("PageNodeCountJob is disabled via configuration");
         }
+        
+        // Update previous state
+        this.previouslyEnabled = enabled;
     }
     
     @Deactivate
     protected void deactivate() {
         LOG.info("Deactivating PageNodeCountJob");
         scheduler.unschedule(JOB_NAME);
+        scheduler.unschedule(JOB_NAME + ".immediate");
         
         if (executorService != null) {
             LOG.info("Shutting down thread pool...");
@@ -113,6 +136,10 @@ public class PageNodeCountJob implements Runnable {
                 Thread.currentThread().interrupt();
             }
         }
+        
+        // Reset state
+        this.previouslyEnabled = false;
+        
         LOG.info("PageNodeCountJob unscheduled");
     }
 

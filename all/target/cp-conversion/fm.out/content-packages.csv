@@ -1,4 +1,4 @@
-# File created on Sat Nov 08 17:09:16 EST 2025 by the Apache Sling Content Package to Sling Feature converter
+# File created on Sat Nov 08 23:47:34 EST 2025 by the Apache Sling Content Package to Sling Feature converter
 # content-package path, content-package ID, content-package type, content-package parent ID, path in parent content-package, absolute path
 /Users/kailasnadh/WORK/AEMaaCS/nodecounter/all/target/node-counter.all-1.0.0-SNAPSHOT.zip,com.adobe.aem:node-counter.all:1.0.0-SNAPSHOT,CONTAINER,,,
 /Users/kailasnadh/WORK/AEMaaCS/nodecounter/all/target/node-counter.all-1.0.0-SNAPSHOT.zip,com.adobe.aem:node-counter.ui.config:1.0.0-SNAPSHOT,CONTAINER,com.adobe.aem:node-counter.all:1.0.0-SNAPSHOT,/jcr_root/apps/nodecounter-packages/application/install/node-counter.ui.config-1.0.0-SNAPSHOT.zip,/Users/kailasnadh/WORK/AEMaaCS/nodecounter/all/target/node-counter.all-1.0.0-SNAPSHOT.zip!/jcr_root/apps/nodecounter-packages/application/install/node-counter.ui.config-1.0.0-SNAPSHOT.zip
