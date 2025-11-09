@@ -49,9 +49,9 @@ public @interface PageNodeCountSchedulerConfig {
     
     @AttributeDefinition(
         name = "Batch Commit Size",
-        description = "Number of page updates before committing to JCR (default: 50). Higher values = better performance but more memory usage"
+        description = "Number of page updates before committing to JCR (default: 20). Lower values reduce conflicts in high-contention environments. Higher values = better performance but more memory usage and conflict risk"
     )
-    int batchCommitSize() default 50;
+    int batchCommitSize() default 20;
     
     @AttributeDefinition(
         name = "Process Only Modified Pages",

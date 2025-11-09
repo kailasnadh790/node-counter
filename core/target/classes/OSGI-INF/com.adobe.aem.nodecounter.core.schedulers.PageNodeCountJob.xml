@@ -7,7 +7,7 @@
   <property name="mediumThreshold" type="Integer" value="1024"/>
   <property name="threadPoolSize" type="Integer" value="4"/>
   <property name="maxPagesPerRun" type="Integer" value="5000"/>
-  <property name="batchCommitSize" type="Integer" value="50"/>
+  <property name="batchCommitSize" type="Integer" value="20"/>
   <property name="processOnlyModified" type="Boolean" value="false"/>
   <property name="modifiedSinceHours" type="Integer" value="24"/>
   <service>

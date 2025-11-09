@@ -8,7 +8,7 @@
     <AD id="mediumThreshold" type="Integer" name="Medium Complexity Threshold" description="Node count threshold for MEDIUM complexity (default: 1024). Pages with more nodes than this value (but less than high threshold) are marked as 'medium'" default="1024"/>
     <AD id="threadPoolSize" type="Integer" name="Thread Pool Size" description="Number of parallel threads for processing pages (default: 4). Higher values = faster processing but more CPU/memory usage" default="4"/>
     <AD id="maxPagesPerRun" type="Integer" name="Max Pages Per Run" description="Maximum number of pages to process in a single run (default: 5000). Set to 0 for unlimited. Helps prevent long-running jobs" default="5000"/>
-    <AD id="batchCommitSize" type="Integer" name="Batch Commit Size" description="Number of page updates before committing to JCR (default: 50). Higher values = better performance but more memory usage" default="50"/>
+    <AD id="batchCommitSize" type="Integer" name="Batch Commit Size" description="Number of page updates before committing to JCR (default: 20). Lower values reduce conflicts in high-contention environments. Higher values = better performance but more memory usage and conflict risk" default="20"/>
     <AD id="processOnlyModified" type="Boolean" name="Process Only Modified Pages" description="If true, only processes pages modified since last run (default: false). Dramatically improves performance for subsequent runs" default="false"/>
     <AD id="modifiedSinceHours" type="Integer" name="Modified Since Hours" description="When 'Process Only Modified Pages' is enabled, only process pages modified in the last N hours (default: 24)" default="24"/>
   </OCD>
