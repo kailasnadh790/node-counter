@@ -229,10 +229,9 @@ modifiedSinceHours=48
 
 ✅ **Fully backward compatible**
 - Old configurations still work with default values
-- No breaking changes to API
-- REST servlet unchanged
 - Property names unchanged (`complexity`, `nodeCount`)
 - Sites admin columns work as before
+- No breaking changes to existing functionality
 
 ## 🧪 Testing Recommendations
 

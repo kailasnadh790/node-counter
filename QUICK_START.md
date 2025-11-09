@@ -72,29 +72,25 @@ PageNodeCountJob completed successfully. Pages processed: X
 4. Ensure **"Complexity"** is checked
 5. You should now see the complexity level for each page
 
-## Step 6: Test the REST API
+## Step 6: Query Pages by Complexity
 
-### Get Single Page Info
+Once the scheduler has run, query pages using standard AEM tools:
 
-```bash
-curl -u admin:admin "http://localhost:4502/bin/nodecounter/page.json?path=/content/wknd/us/en"
-```
-
-Expected response:
-```json
-{
-  "success": true,
-  "path": "/content/wknd/us/en",
-  "nodeCount": 1523,
-  "complexity": "medium",
-  ...
-}
-```
-
-### Get Multiple Pages
+### Using QueryBuilder
 
 ```bash
-curl -u admin:admin "http://localhost:4502/bin/nodecounter/page.json?rootPath=/content/wknd&limit=10"
+curl -u admin:admin "http://localhost:4502/bin/querybuilder.json?path=/content/wknd&type=cq:Page&property=jcr:content/complexity&property.value=high"
+```
+
+### Using CRXDE Lite
+
+Navigate to: http://localhost:4502/crx/de
+
+Use JCR-SQL2 query:
+```sql
+SELECT * FROM [cq:PageContent] AS pageContent
+WHERE ISDESCENDANTNODE(pageContent, '/content/wknd')
+AND pageContent.[complexity] = 'high'
 ```
 
 ## Common Issues & Solutions

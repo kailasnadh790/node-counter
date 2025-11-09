@@ -103,14 +103,11 @@ SELECT * FROM [cq:PageContent] WHERE [complexity] IS NOT NULL
 
 Should return pages with complexity property.
 
-### Test REST API
+### Query Pages by Complexity
 
 ```bash
-# Single page
-curl -u admin:admin "http://localhost:4502/bin/nodecounter/page.json?path=/content/wknd/us/en"
-
-# Multiple pages
-curl -u admin:admin "http://localhost:4502/bin/nodecounter/page.json?rootPath=/content/wknd&limit=10"
+# Using QueryBuilder - find high complexity pages
+curl -u admin:admin "http://localhost:4502/bin/querybuilder.json?path=/content&type=cq:Page&property=jcr:content/complexity&property.value=high"
 ```
 
 ### Check Sites Admin Columns
@@ -319,7 +316,7 @@ If upgrading from a non-optimized version:
 - [ ] OSGi configuration saved
 - [ ] First run completed (check logs)
 - [ ] Complexity properties set on pages (check CRXDE)
-- [ ] REST API responds correctly (test with curl)
+- [ ] Query pages by complexity (test with QueryBuilder)
 - [ ] Sites admin columns visible
 - [ ] Incremental mode enabled after first run
 - [ ] Monitoring set up (logs, alerts)
@@ -332,7 +329,7 @@ Your deployment is successful when:
 ✅ Job runs on schedule without errors  
 ✅ Pages have `complexity` and `nodeCount` properties  
 ✅ Sites admin shows custom columns  
-✅ REST API returns valid data  
+✅ QueryBuilder returns pages by complexity  
 ✅ Incremental mode reduces runtime by 90%+  
 ✅ No OutOfMemory or timeout errors  
 ✅ Failed page count < 1%  

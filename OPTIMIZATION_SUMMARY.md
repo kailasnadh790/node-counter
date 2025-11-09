@@ -153,8 +153,8 @@ private static final int COMMIT_BATCH_SIZE = 50; // Increase for better performa
 ✅ **100% backward compatible**
 - Same properties written (`nodeCount`, `complexity`)
 - Same OSGi configuration
-- Same servlet API
 - Same page info provider
+- No breaking changes to existing functionality
 
 ## Testing Recommendations
 

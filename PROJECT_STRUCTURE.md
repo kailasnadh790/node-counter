@@ -18,8 +18,8 @@ node-counter/
 │       │   └── PageNodeCountSchedulerConfig.java      # OSGi configuration interface
 │       ├── schedulers/
 │       │   └── PageNodeCountJob.java                  # Scheduled job to analyze pages
-│       └── servlets/
-│           └── PageComplexityServlet.java             # REST API servlet
+│       └── services/
+│           └── NodeCountInfoProvider.java             # Service for node count info
 │
 ├── ui.apps.structure/               # Repository structure package
 │   ├── pom.xml
@@ -100,17 +100,14 @@ OSGi bundle containing all Java code:
   - Early exit optimization for performance
   - Comprehensive logging
 
-#### PageComplexityServlet.java
-- **Type**: Sling servlet (GET)
-- **Purpose**: REST API for on-demand analysis
-- **Endpoints**:
-  - `/bin/nodecounter/page.json?path=/content/page` - Single page
-  - `/bin/nodecounter/page.json?rootPath=/content&limit=100` - Multiple pages
+#### NodeCountInfoProvider.java
+- **Type**: OSGi Service
+- **Purpose**: Provides node count and complexity information for pages
 - **Features**:
-  - JSON response format
-  - Customizable thresholds via parameters
-  - Summary statistics
-  - Pagination support
+  - Retrieves stored complexity and node count properties
+  - Returns page metadata (title, path, last modified)
+  - Applies threshold-based complexity calculation
+  - Used by Sites admin columns and other components
 
 ### UI Apps Structure (`ui.apps.structure/`)
 
@@ -204,9 +201,9 @@ Maven reactor builds in this order:
 ### Runtime Dependencies
 - Sling Scheduler API - Job scheduling
 - Sling Resource API - JCR access
-- Sling Servlet API - REST endpoints
-- Java EE JSON API - JSON responses
+- OSGi Component API - Service management
 - CQ WCM API - Page management
+- SLF4J - Logging
 
 ## Configuration Files
 

@@ -16,7 +16,7 @@ PURPOSE: Standalone AEM package for counting nodes and setting complexity
    Contains:
    ✓ PageNodeCountSchedulerConfig.java    - OSGi configuration interface
    ✓ PageNodeCountJob.java                - Scheduled job (analyzes pages)
-   ✓ PageComplexityServlet.java           - REST API (/bin/nodecounter/page)
+   ✓ NodeCountInfoProvider.java           - Service for node count info
 
 2. UI APPS STRUCTURE (node-counter.ui.apps.structure)
    Type: Content Package
@@ -61,11 +61,8 @@ PURPOSE: Standalone AEM package for counting nodes and setting complexity
   - Counts nodes per page (excluding nested pages)
   - Sets complexity property (low/medium/high)
   - Configurable thresholds and cron schedule
-
-✓ REST API
-  - GET /bin/nodecounter/page.json?path=/content/page
-  - GET /bin/nodecounter/page.json?rootPath=/content&limit=100
-  - JSON responses with node counts and complexity
+  - Parallel processing with thread pools
+  - Incremental mode for modified pages only
 
 ✓ Sites Admin Integration
   - Adds "Complexity" column to Sites console
