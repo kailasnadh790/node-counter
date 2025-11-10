@@ -46,16 +46,22 @@ public class PageNodeCountJob implements Runnable {
     // Track previous enabled state to detect enable transitions
     private boolean previouslyEnabled = false;
     
+    // Track if this is the first activation (bundle deployment vs config change)
+    private boolean isFirstActivation = true;
+    
     // Thread pool for parallel processing
     private ExecutorService executorService;
 
     @Activate
     @Modified
     protected void activate(PageNodeCountSchedulerConfig config) {
-        // Detect if enabled is changing from false to true
+        // Detect if enabled is changing from false to true (but not on first activation)
         boolean wasDisabled = !this.previouslyEnabled;
         boolean nowEnabled = config.enabled();
-        boolean justEnabled = wasDisabled && nowEnabled;
+        boolean justEnabled = wasDisabled && nowEnabled && !isFirstActivation;
+        
+        LOG.info("PageNodeCountJob activation - isFirstActivation: {}, previouslyEnabled: {}, nowEnabled: {}, justEnabled: {}", 
+                isFirstActivation, this.previouslyEnabled, nowEnabled, justEnabled);
         
         this.rootPath = config.rootPath();
         this.enabled = config.enabled();
@@ -96,13 +102,13 @@ public class PageNodeCountJob implements Runnable {
         // Schedule with config expression if enabled
         if (enabled) {
             try {
-                // If job was just enabled (not initial activation), run immediately
+                // Only run immediately if enabled via config change (not on bundle activation)
                 if (justEnabled) {
                     ScheduleOptions immediateOptions = scheduler.NOW();
                     immediateOptions.name(JOB_NAME + ".immediate");
                     immediateOptions.canRunConcurrently(false);
                     scheduler.schedule(this, immediateOptions);
-                    LOG.info("PageNodeCountJob enabled - scheduling immediate execution");
+                    LOG.info("PageNodeCountJob enabled via config - scheduling immediate execution");
                 }
                 
                 // Schedule recurring cron job
@@ -118,8 +124,9 @@ public class PageNodeCountJob implements Runnable {
             LOG.info("PageNodeCountJob is disabled via configuration");
         }
         
-        // Update previous state
+        // Update state tracking
         this.previouslyEnabled = enabled;
+        this.isFirstActivation = false;  // After first activation, mark as false
     }
     
     @Deactivate
@@ -149,6 +156,7 @@ public class PageNodeCountJob implements Runnable {
         
         // Reset state
         this.previouslyEnabled = false;
+        this.isFirstActivation = true;  // Reset for next activation cycle
         
         LOG.info("PageNodeCountJob deactivation complete");
     }
@@ -460,27 +468,50 @@ public class PageNodeCountJob implements Runnable {
         try {
             MBeanServer server = ManagementFactory.getPlatformMBeanServer();
             
-            // Oak NodeCounter MBean object name
-            ObjectName mbeanName = new ObjectName("org.apache.jackrabbit.oak:name=NodeCounter,type=NodeCounter");
+            // Try different possible MBean names for Oak NodeCounter
+            String[] possibleNames = {
+                "org.apache.jackrabbit.oak:name=nodeCounter,type=NodeCounter",  // Correct case!
+                "org.apache.jackrabbit.oak:name=NodeCounter,type=NodeCounter",
+                "org.apache.jackrabbit.oak:type=NodeCounter",
+                "org.apache.jackrabbit.oak:name=segment node store node counter,type=NodeCounter"
+            };
             
-            if (server.isRegistered(mbeanName)) {
-                // Invoke getEstimatedNodeCount operation with path parameter
-                Long count = (Long) server.invoke(
-                    mbeanName, 
-                    "getEstimatedNodeCount",
-                    new Object[]{path},
-                    new String[]{String.class.getName()}
-                );
-                
-                if (count != null && count >= 0) {
-                    LOG.debug("MBean count for {}: {}", path, count);
-                    return count;
+            for (String name : possibleNames) {
+                try {
+                    ObjectName mbeanName = new ObjectName(name);
+                    
+                    if (server.isRegistered(mbeanName)) {
+                        // Try different method names
+                        String[] methodNames = {"getEstimatedNodeCount", "getNodeCount", "count"};
+                        
+                        for (String methodName : methodNames) {
+                            try {
+                                Long count = (Long) server.invoke(
+                                    mbeanName, 
+                                    methodName,
+                                    new Object[]{path},
+                                    new String[]{String.class.getName()}
+                                );
+                                
+                                if (count != null && count >= 0) {
+                                    return count;
+                                }
+                            } catch (Exception methodEx) {
+                                // Try next method
+                                LOG.trace("Method {} not available: {}", methodName, methodEx.getMessage());
+                            }
+                        }
+                    }
+                } catch (Exception nameEx) {
+                    // Try next name
+                    LOG.trace("MBean {} not available: {}", name, nameEx.getMessage());
                 }
-            } else {
-                LOG.debug("NodeCounter MBean not available, using fallback");
             }
+            
+            LOG.debug("No NodeCounter MBean available for path: {}", path);
+            
         } catch (Exception e) {
-            LOG.debug("Could not get MBean count for {}: {}", path, e.getMessage());
+            LOG.debug("Error accessing MBean for {}: {}", path, e.getMessage());
         }
         
         return -1;
@@ -494,15 +525,17 @@ public class PageNodeCountJob implements Runnable {
         try {
             Node node = resource.adaptTo(Node.class);
             if (node == null) {
+                LOG.warn("Could not adapt resource to Node for {}", resource.getPath());
                 return 0;
             }
             
             // Use query to count descendants (excludes nested cq:Page nodes)
+            String escapedPath = resource.getPath().replace("'", "''");
             String queryString = String.format(
                 "SELECT * FROM [nt:base] AS node " +
                 "WHERE ISDESCENDANTNODE(node, '%s') " +
                 "AND node.[jcr:primaryType] <> 'cq:Page'",
-                resource.getPath()
+                escapedPath
             );
             
             javax.jcr.query.QueryManager qm = node.getSession().getWorkspace().getQueryManager();
@@ -513,12 +546,10 @@ public class PageNodeCountJob implements Runnable {
             
             javax.jcr.query.QueryResult result = query.execute();
             long count = result.getRows().getSize();
-            
-            LOG.debug("Query count for {}: {}", resource.getPath(), count);
             return count;
             
         } catch (Exception e) {
-            LOG.warn("Query count failed for {}: {}", resource.getPath(), e.getMessage());
+            LOG.error("Query count failed for {}: {} - {}", resource.getPath(), e.getClass().getSimpleName(), e.getMessage(), e);
             return 0;
         }
     }

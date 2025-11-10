@@ -99,7 +99,7 @@ After installation, configure the scheduler via OSGi Configuration:
 
 > **💡 Tip:** For initial deployment, use `processOnlyModified=false` to scan all pages. Then enable it for 50-100x faster incremental updates!
 
-> **⚡ Immediate Execution:** When you enable the job via OSGi config (disabled → enabled), it runs immediately in addition to the scheduled cron times.
+> **⚡ Immediate Execution:** When you **enable the job via OSGi config** (disabled → enabled), it runs immediately in addition to the scheduled cron times. Note: Does NOT run immediately on bundle deployment/activation.
 
 ### Example Cron Expressions
 

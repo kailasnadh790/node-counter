@@ -1,5 +1,5 @@
 {
-  "enabled": "$[env:NODE_COUNTER_ENABLED;default=true]",
+  "enabled": "$[env:NODE_COUNTER_ENABLED;default=false]",
   "rootPath": "$[env:NODE_COUNTER_ROOT_PATH;default=/content]",
   "scheduler.expression": "$[env:NODE_COUNTER_CRON;default=0 0 0 * * ?]",
   "highThreshold": "$[env:NODE_COUNTER_HIGH_THRESHOLD;default=2048]",
