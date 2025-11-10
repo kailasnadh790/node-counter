@@ -11,7 +11,7 @@
         sortable="{Boolean}true"/>
     <nodeCount
         jcr:primaryType="nt:unstructured"
-        jcr:title="Node Count"
+        jcr:title="Node Count(approximate)"
         columnGroup="metadata"
         default="{Boolean}true"
         page-info-provider="complexity"
