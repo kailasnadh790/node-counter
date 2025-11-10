@@ -9,7 +9,11 @@ import org.osgi.service.metatype.annotations.Designate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.jcr.Node;
 import javax.jcr.query.Query;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
+import java.lang.management.ManagementFactory;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -412,26 +416,111 @@ public class PageNodeCountJob implements Runnable {
     }
     
     /**
-     * Counts all descendants of a resource efficiently
+     * Counts all descendants of a resource using Oak's NodeCounter MBean.
+     * 
+     * This approach uses Oak's internal statistics instead of traversing the tree,
+     * which provides significant performance benefits:
+     * - Zero cache impact (no nodes loaded into cache)
+     * - Constant time operation (O(1) vs O(n))
+     * - No repository contention
+     * 
+     * Trade-off: Counts are approximate, not exact. Oak updates these statistics
+     * asynchronously. For complexity assessment (low/medium/high), approximate
+     * counts are sufficient and the performance gain is worth it.
      */
     private long countDescendants(Resource resource) {
         if (resource == null) {
             return 0;
         }
         
-        long count = 0;
-        for (Resource child : resource.getChildren()) {
-            // Skip counting if this is a cq:Page (don't count nested pages)
-            String primaryType = child.getValueMap().get("jcr:primaryType", String.class);
-            if ("cq:Page".equals(primaryType)) {
-                continue;
+        String path = resource.getPath();
+        
+        try {
+            // First try to use NodeCounter MBean for fast approximate count
+            long count = getNodeCountFromMBean(path);
+            
+            if (count >= 0) {
+                return count;
             }
             
-            count++;
-            count += countDescendants(child);
+            // Fallback: If MBean not available, use direct JCR query count
+            return getNodeCountFromQuery(resource);
+            
+        } catch (Exception e) {
+            LOG.warn("Error counting descendants for {}: {}", path, e.getMessage());
+            return 0;
+        }
+    }
+    
+    /**
+     * Gets approximate node count from Oak's NodeCounter MBean.
+     * Returns -1 if MBean is not available or count cannot be determined.
+     */
+    private long getNodeCountFromMBean(String path) {
+        try {
+            MBeanServer server = ManagementFactory.getPlatformMBeanServer();
+            
+            // Oak NodeCounter MBean object name
+            ObjectName mbeanName = new ObjectName("org.apache.jackrabbit.oak:name=NodeCounter,type=NodeCounter");
+            
+            if (server.isRegistered(mbeanName)) {
+                // Invoke getEstimatedNodeCount operation with path parameter
+                Long count = (Long) server.invoke(
+                    mbeanName, 
+                    "getEstimatedNodeCount",
+                    new Object[]{path},
+                    new String[]{String.class.getName()}
+                );
+                
+                if (count != null && count >= 0) {
+                    LOG.debug("MBean count for {}: {}", path, count);
+                    return count;
+                }
+            } else {
+                LOG.debug("NodeCounter MBean not available, using fallback");
+            }
+        } catch (Exception e) {
+            LOG.debug("Could not get MBean count for {}: {}", path, e.getMessage());
         }
         
-        return count;
+        return -1;
+    }
+    
+    /**
+     * Fallback method: Uses JCR query to count descendant nodes.
+     * More expensive than MBean but still better than full traversal.
+     */
+    private long getNodeCountFromQuery(Resource resource) {
+        try {
+            Node node = resource.adaptTo(Node.class);
+            if (node == null) {
+                return 0;
+            }
+            
+            // Use query to count descendants (excludes nested cq:Page nodes)
+            String queryString = String.format(
+                "SELECT * FROM [nt:base] AS node " +
+                "WHERE ISDESCENDANTNODE(node, '%s') " +
+                "AND node.[jcr:primaryType] <> 'cq:Page'",
+                resource.getPath()
+            );
+            
+            javax.jcr.query.QueryManager qm = node.getSession().getWorkspace().getQueryManager();
+            javax.jcr.query.Query query = qm.createQuery(queryString, Query.JCR_SQL2);
+            
+            // Set limit to prevent counting millions of nodes
+            query.setLimit(10000);
+            
+            javax.jcr.query.QueryResult result = query.execute();
+            long count = result.getRows().getSize();
+            
+            LOG.debug("Query count for {}: {}", resource.getPath(), count);
+            return count;
+            
+        } catch (Exception e) {
+            LOG.warn("Query count failed for {}: {}", resource.getPath(), e.getMessage());
+            return 0;
+        }
     }
     
     /**

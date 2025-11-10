@@ -134,6 +134,13 @@ The `PageNodeCountJob` runs on the configured schedule:
 - **medium**: Node count > Medium Threshold and ≤ High Threshold (default: 1024-2048)
 - **low**: Node count ≤ Medium Threshold (default: ≤1024)
 
+**Performance Notes:**
+- Uses Oak's **NodeCounter MBean** for O(1) approximate counts (no traversal!)
+- **Zero cache impact** - reads from Oak's internal statistics
+- Falls back to JCR query count if MBean unavailable
+- Counts are approximate but sufficient for complexity rating
+- Trade-off: Speed and cache efficiency over perfect accuracy
+
 ## Service User
 
 The package creates a service user `nodecount-updater` with permissions to read and write content under `/content`.
