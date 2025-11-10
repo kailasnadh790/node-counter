@@ -69,7 +69,10 @@ public class PageNodeCountJob implements Runnable {
         
         // Initialize thread pool
         if (executorService != null) {
-            executorService.shutdownNow();
+            // Graceful shutdown without interrupting - avoid repository corruption
+            executorService.shutdown();
+            LOG.info("Initiated graceful shutdown of previous thread pool");
+            // Don't wait or interrupt - let threads finish naturally
         }
         executorService = Executors.newFixedThreadPool(threadPoolSize, 
             new ThreadFactory() {
@@ -122,25 +125,28 @@ public class PageNodeCountJob implements Runnable {
         scheduler.unschedule(JOB_NAME + ".immediate");
         
         if (executorService != null) {
-            LOG.info("Shutting down thread pool...");
+            LOG.info("Shutting down thread pool gracefully...");
             executorService.shutdown();
+            
             try {
-                if (!executorService.awaitTermination(60, TimeUnit.SECONDS)) {
-                    executorService.shutdownNow();
-                    if (!executorService.awaitTermination(60, TimeUnit.SECONDS)) {
-                        LOG.error("Thread pool did not terminate");
-                    }
+                // Wait for graceful termination, but don't interrupt threads
+                if (!executorService.awaitTermination(30, TimeUnit.SECONDS)) {
+                    LOG.warn("Thread pool did not terminate within 30 seconds. " +
+                            "Threads will finish naturally (daemon threads will be cleaned up by JVM).");
                 }
             } catch (InterruptedException e) {
-                executorService.shutdownNow();
-                Thread.currentThread().interrupt();
+                // Don't interrupt worker threads - just log and continue
+                LOG.warn("Deactivation interrupted while waiting for thread pool shutdown. " +
+                        "Worker threads will continue and finish naturally.");
+                // Note: We intentionally do NOT call Thread.currentThread().interrupt()
+                // or executorService.shutdownNow() to avoid corrupting repository sessions
             }
         }
         
         // Reset state
         this.previouslyEnabled = false;
         
-        LOG.info("PageNodeCountJob unscheduled");
+        LOG.info("PageNodeCountJob deactivation complete");
     }
 
     @Override
@@ -212,8 +218,9 @@ public class PageNodeCountJob implements Runnable {
                 try {
                     future.get(30, TimeUnit.MINUTES); // Timeout per batch
                 } catch (TimeoutException e) {
-                    LOG.error("Batch processing timed out", e);
-                    future.cancel(true);
+                    LOG.error("Batch processing timed out after 30 minutes", e);
+                    // Use cancel(false) to avoid interrupting - prevents repository corruption
+                    future.cancel(false);
                 } catch (Exception e) {
                     LOG.error("Error waiting for batch completion", e);
                 }
